@@ -1,7 +1,7 @@
 window.Webflow ||= [];
 
-const DEFAULT_DURATION = '500ms';
-const DEFAULT_STAGGER = '150ms';
+const DEFAULT_DURATION = '480ms';
+const DEFAULT_STAGGER = '80ms';
 const DEFAULT_THRESHOLD = 0.2;
 const TIMING_FN = 'cubic-bezier(0.165, 0.84, 0.44, 1)';
 
@@ -9,41 +9,43 @@ const TIMING_FN = 'cubic-bezier(0.165, 0.84, 0.44, 1)';
 (function injectStyles() {
   const style = document.createElement('style');
   style.innerHTML = `
-  /* fs-aos global styles */
-  [fs-aos],
-  [fs-aos-children] > * {
-    transition-timing-function: ${TIMING_FN};
-    transition-property: opacity, transform;
-    transition-duration: var(--duration, ${DEFAULT_DURATION});
-  }
+  @media (prefers-reduced-motion: no-preference) {
+    /* aos global styles */
+    [aos],
+    [aos-children] > * {
+      transition-timing-function: ${TIMING_FN};
+      transition-property: opacity, transform;
+      transition-duration: var(--duration, ${DEFAULT_DURATION});
+    }
 
-  /* fs-aos animations */
-  /* fade-up - also default animation */
-  [fs-aos=""],
-  [fs-aos="fade-up"],
-  [fs-aos-children=""] > *,
-  [fs-aos-children="fade-up"] > * {
-    opacity: 0;
-    transform: translateY(32px);
-  }
+    /* aos animations */
+    /* fade-up - also default animation */
+    [aos=""],
+    [aos="fade-up"],
+    [aos-children=""] > *,
+    [aos-children="fade-up"] > * {
+      opacity: 0;
+      transform: translateY(32px);
+    }
 
-  [fs-aos=""].in-viewport,
-  [fs-aos="fade-up"].in-viewport,
-  [fs-aos-children=""] > *.in-viewport,
-  [fs-aos-children="fade-up"] > *.in-viewport {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    [aos=""].in-viewport,
+    [aos="fade-up"].in-viewport,
+    [aos-children=""] > *.in-viewport,
+    [aos-children="fade-up"] > *.in-viewport {
+      opacity: 1;
+      transform: translateY(0);
+    }
 
-  /* fade-in */
-  [fs-aos="fade-in"],
-  [fs-aos-children="fade-in"] > * {
-    opacity: 0;
-  }
+    /* fade-in */
+    [aos="fade-in"],
+    [aos-children="fade-in"] > * {
+      opacity: 0;
+    }
 
-  [fs-aos="fade-in"].in-viewport,
-  [fs-aos-children="fade-in"] > *.in-viewport {
-    opacity: 1;
+    [aos="fade-in"].in-viewport,
+    [aos-children="fade-in"] > *.in-viewport {
+      opacity: 1;
+    }
   }
 `;
   document.head.appendChild(style);
@@ -51,10 +53,15 @@ const TIMING_FN = 'cubic-bezier(0.165, 0.84, 0.44, 1)';
 
 class ScrollAnimator {
   private observer: IntersectionObserver;
+  private globalStagger: string;
 
   constructor() {
-    const thresholdAttr = document.documentElement.getAttribute('fs-aos-threshold');
+    const thresholdAttr = document.documentElement.getAttribute('aos-threshold');
+    const globalStaggerAttr = document.documentElement.getAttribute('aos-stagger');
     const threshold = thresholdAttr ? parseFloat(thresholdAttr) : DEFAULT_THRESHOLD;
+    this.globalStagger = globalStaggerAttr
+      ? ` ${parseFloat(globalStaggerAttr)}ms`
+      : DEFAULT_STAGGER;
 
     this.observer = new IntersectionObserver(this.handleIntersect.bind(this), {
       root: null,
@@ -65,8 +72,8 @@ class ScrollAnimator {
   }
 
   initializeAnimations() {
-    // Select elements with fs-aos and children of elements with fs-aos-children
-    const elements = document.querySelectorAll('[fs-aos], [fs-aos-children] > *');
+    // Select elements with aos and children of elements with aos-children
+    const elements = document.querySelectorAll('[aos], [aos-children] > *');
     elements.forEach((element) => this.observer.observe(element));
   }
 
@@ -79,8 +86,8 @@ class ScrollAnimator {
 
         // Determine duration
         const durationAttr =
-          target.getAttribute('fs-aos-duration') ||
-          target.closest('[fs-aos-duration]')?.getAttribute('fs-aos-duration');
+          target.getAttribute('aos-duration') ||
+          target.closest('[aos-duration]')?.getAttribute('aos-duration');
         const duration = durationAttr
           ? Number.isNaN(durationAttr)
             ? durationAttr
@@ -90,16 +97,12 @@ class ScrollAnimator {
 
         // Determine stagger
         const staggerAttr =
-          target.getAttribute('fs-aos-stagger') ||
-          target.closest('[fs-aos-stagger]')?.getAttribute('fs-aos-stagger');
-        const stagger =
-          typeof staggerAttr === 'string'
-            ? staggerAttr === ''
-              ? DEFAULT_STAGGER
-              : Number.isNaN(staggerAttr)
-                ? staggerAttr
-                : `${parseFloat(staggerAttr)}ms`
-            : null;
+          target.getAttribute('aos-stagger') ||
+          target.closest('[aos-stagger]')?.getAttribute('aos-stagger') ||
+          null;
+
+        const stagger = staggerAttr ? `${parseFloat(staggerAttr)}ms` : this.globalStagger;
+
         if (stagger) {
           target.style.transitionDelay = `calc(${items} * ${stagger})`;
 
