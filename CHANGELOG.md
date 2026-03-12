@@ -1,5 +1,14 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.2.1
+
+### Patch Changes
+
+- Minor improvements.
+
+  - extract animation attribute parsing into a dedicated utility module
+  - centralize duration, stagger, and page-delay normalization logic
+
 ## 2.2.0
 
 ### Minor Changes

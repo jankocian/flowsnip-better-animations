@@ -1,3 +1,5 @@
+import { getDurationValue, getPageDelay, getStaggerValue } from './utils/animation-attributes';
+
 window.Webflow ||= [];
 
 const DEFAULT_DURATION = '360ms';
@@ -5,7 +7,6 @@ const DEFAULT_STAGGER = '60ms';
 const DEFAULT_THRESHOLD = 0.2;
 const TIMING_FN = 'cubic-bezier(0, 0, 0.2, 1)';
 const VERTICAL_OFFSET = 1 / 15;
-const PAGE_DELAY_ATTR = 'aos-page-delay';
 const currentScript = document.currentScript as HTMLScriptElement | null;
 
 // Inject CSS immediately to avoid visual glitches before the DOM is fully loaded
@@ -65,11 +66,9 @@ class ScrollAnimator {
     const thresholdAttr = document.documentElement.getAttribute('aos-threshold');
     const globalStaggerAttr = document.documentElement.getAttribute('aos-stagger');
     const threshold = thresholdAttr ? parseFloat(thresholdAttr) : DEFAULT_THRESHOLD;
-    this.globalStagger = globalStaggerAttr
-      ? ` ${parseFloat(globalStaggerAttr)}ms`
-      : DEFAULT_STAGGER;
+    this.globalStagger = getStaggerValue(globalStaggerAttr) ?? DEFAULT_STAGGER;
     this.bottomOffsetBoundary = this.getDocumentHeight() - window.innerHeight * VERTICAL_OFFSET;
-    this.pageDelay = this.getPageDelay();
+    this.pageDelay = getPageDelay(currentScript);
 
     this.observer = new IntersectionObserver(this.handleIntersect.bind(this), {
       root: null,
@@ -133,32 +132,13 @@ class ScrollAnimator {
     return Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
   }
 
-  private parseNumericAttr(attribute: string | null, fallback: number) {
-    if (attribute === null) return fallback;
-
-    const parsedValue = parseFloat(attribute);
-    return Number.isFinite(parsedValue) && parsedValue >= 0 ? parsedValue : fallback;
-  }
-
-  private getPageDelay() {
-    const pageDelayAttr =
-      document.body?.getAttribute(PAGE_DELAY_ATTR) ??
-      currentScript?.getAttribute(PAGE_DELAY_ATTR) ??
-      null;
-
-    return this.parseNumericAttr(pageDelayAttr, 0);
-  }
-
   private animateIn(target: HTMLElement, items: number, pageDelay = 0) {
     // Determine duration
     const durationAttr =
       target.getAttribute('aos-duration') ||
-      target.closest('[aos-duration]')?.getAttribute('aos-duration');
-    const duration = durationAttr
-      ? Number.isNaN(durationAttr)
-        ? durationAttr
-        : `${parseFloat(durationAttr)}ms`
-      : DEFAULT_DURATION;
+      target.closest('[aos-duration]')?.getAttribute('aos-duration') ||
+      null;
+    const duration = getDurationValue(durationAttr) ?? DEFAULT_DURATION;
     target.style.setProperty('--duration', duration);
 
     // Determine stagger
@@ -167,7 +147,7 @@ class ScrollAnimator {
       target.closest('[aos-stagger]')?.getAttribute('aos-stagger') ||
       null;
 
-    const stagger = staggerAttr ? `${parseFloat(staggerAttr)}ms` : this.globalStagger;
+    const stagger = getStaggerValue(staggerAttr) ?? this.globalStagger;
     const staggerDelay = `calc(${items} * ${stagger})`;
 
     if (stagger || pageDelay > 0) {
