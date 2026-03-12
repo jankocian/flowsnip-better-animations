@@ -4,6 +4,7 @@ const DEFAULT_DURATION = '480ms';
 const DEFAULT_STAGGER = '80ms';
 const DEFAULT_THRESHOLD = 0.2;
 const TIMING_FN = 'cubic-bezier(0.165, 0.84, 0.44, 1)';
+const VERTICAL_OFFSET = 1 / 15;
 
 // Inject CSS immediately to avoid visual glitches before the DOM is fully loaded
 (function injectStyles() {
@@ -53,7 +54,9 @@ const TIMING_FN = 'cubic-bezier(0.165, 0.84, 0.44, 1)';
 
 class ScrollAnimator {
   private observer: IntersectionObserver;
+  private edgeObserver: IntersectionObserver;
   private globalStagger: string;
+  private bottomOffsetBoundary: number;
 
   constructor() {
     const thresholdAttr = document.documentElement.getAttribute('aos-threshold');
@@ -62,11 +65,16 @@ class ScrollAnimator {
     this.globalStagger = globalStaggerAttr
       ? ` ${parseFloat(globalStaggerAttr)}ms`
       : DEFAULT_STAGGER;
+    this.bottomOffsetBoundary = this.getDocumentHeight() - window.innerHeight * VERTICAL_OFFSET;
 
     this.observer = new IntersectionObserver(this.handleIntersect.bind(this), {
       root: null,
-      rootMargin: '-6.66667% 0% -6.66667% 0%',
+      rootMargin: `${-VERTICAL_OFFSET * 100}% 0% ${-VERTICAL_OFFSET * 100}% 0%`,
       threshold, // Element visibility threshold
+    });
+    this.edgeObserver = new IntersectionObserver(this.handleIntersect.bind(this), {
+      root: null,
+      threshold,
     });
     this.initializeAnimations();
   }
@@ -82,6 +90,11 @@ class ScrollAnimator {
       if (this.isInitiallyVisible(target)) {
         this.animateIn(target, initialItems);
         initialItems += 1;
+        return;
+      }
+
+      if (this.shouldIgnoreBottomOffset(target)) {
+        this.edgeObserver.observe(target);
         return;
       }
 
@@ -103,6 +116,17 @@ class ScrollAnimator {
   private isInitiallyVisible(target: HTMLElement) {
     const { top, bottom } = target.getBoundingClientRect();
     return top < window.innerHeight && bottom > 0;
+  }
+
+  private shouldIgnoreBottomOffset(target: HTMLElement) {
+    const rect = target.getBoundingClientRect();
+    const targetBottom = rect.bottom + window.scrollY;
+
+    return rect.height > 0 && targetBottom > this.bottomOffsetBoundary;
+  }
+
+  private getDocumentHeight() {
+    return Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
   }
 
   private animateIn(target: HTMLElement, items: number) {
@@ -138,6 +162,7 @@ class ScrollAnimator {
 
     target.classList.add('in-viewport');
     this.observer.unobserve(target);
+    this.edgeObserver.unobserve(target);
   }
 }
 

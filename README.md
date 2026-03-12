@@ -33,6 +33,7 @@ Do not use `async` for the script tag to ensure the styles are injected immediat
 - `aos-threshold` (optional) - On body element - defines the visibility threshold for triggering animations, default is 0.2 (20 %)
 
 Elements already visible on initial page load animate immediately, even if they would otherwise be delayed by the vertical viewport offset.
+Elements near the end of the page automatically fall back to a no-offset observer when the bottom viewport offset would otherwise make their threshold unreachable.
 
 ### Examples
 
