@@ -1,9 +1,9 @@
 window.Webflow ||= [];
 
-const DEFAULT_DURATION = '480ms';
-const DEFAULT_STAGGER = '80ms';
+const DEFAULT_DURATION = '360ms';
+const DEFAULT_STAGGER = '60ms';
 const DEFAULT_THRESHOLD = 0.2;
-const TIMING_FN = 'cubic-bezier(0.165, 0.84, 0.44, 1)';
+const TIMING_FN = 'cubic-bezier(0, 0, 0.2, 1)';
 const VERTICAL_OFFSET = 1 / 15;
 const PAGE_DELAY_ATTR = 'aos-page-delay';
 const currentScript = document.currentScript as HTMLScriptElement | null;
@@ -28,7 +28,7 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
     [aos-children=""] > *,
     [aos-children="fade-up"] > * {
       opacity: 0;
-      transform: translateY(32px);
+      transform: translateY(24px);
     }
 
     [aos=""].in-viewport,
