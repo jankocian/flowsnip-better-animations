@@ -1,5 +1,15 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.2.0
+
+### Minor Changes
+
+- Add page-level delay support for initially visible animations.
+
+  - add `aos-page-delay` to delay above-the-fold animations on initial page load
+  - allow `body` to override the script tag value for page-level delay configuration
+  - document the new page delay option in the README
+
 ## 2.1.0
 
 ### Minor Changes

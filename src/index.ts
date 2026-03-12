@@ -5,6 +5,8 @@ const DEFAULT_STAGGER = '80ms';
 const DEFAULT_THRESHOLD = 0.2;
 const TIMING_FN = 'cubic-bezier(0.165, 0.84, 0.44, 1)';
 const VERTICAL_OFFSET = 1 / 15;
+const PAGE_DELAY_ATTR = 'aos-page-delay';
+const currentScript = document.currentScript as HTMLScriptElement | null;
 
 // Inject CSS immediately to avoid visual glitches before the DOM is fully loaded
 (function injectStyles() {
@@ -57,6 +59,7 @@ class ScrollAnimator {
   private edgeObserver: IntersectionObserver;
   private globalStagger: string;
   private bottomOffsetBoundary: number;
+  private pageDelay: number;
 
   constructor() {
     const thresholdAttr = document.documentElement.getAttribute('aos-threshold');
@@ -66,6 +69,7 @@ class ScrollAnimator {
       ? ` ${parseFloat(globalStaggerAttr)}ms`
       : DEFAULT_STAGGER;
     this.bottomOffsetBoundary = this.getDocumentHeight() - window.innerHeight * VERTICAL_OFFSET;
+    this.pageDelay = this.getPageDelay();
 
     this.observer = new IntersectionObserver(this.handleIntersect.bind(this), {
       root: null,
@@ -88,7 +92,7 @@ class ScrollAnimator {
       const target = element as HTMLElement;
 
       if (this.isInitiallyVisible(target)) {
-        this.animateIn(target, initialItems);
+        this.animateIn(target, initialItems, this.pageDelay);
         initialItems += 1;
         return;
       }
@@ -129,7 +133,23 @@ class ScrollAnimator {
     return Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
   }
 
-  private animateIn(target: HTMLElement, items: number) {
+  private parseNumericAttr(attribute: string | null, fallback: number) {
+    if (attribute === null) return fallback;
+
+    const parsedValue = parseFloat(attribute);
+    return Number.isFinite(parsedValue) && parsedValue >= 0 ? parsedValue : fallback;
+  }
+
+  private getPageDelay() {
+    const pageDelayAttr =
+      document.body?.getAttribute(PAGE_DELAY_ATTR) ??
+      currentScript?.getAttribute(PAGE_DELAY_ATTR) ??
+      null;
+
+    return this.parseNumericAttr(pageDelayAttr, 0);
+  }
+
+  private animateIn(target: HTMLElement, items: number, pageDelay = 0) {
     // Determine duration
     const durationAttr =
       target.getAttribute('aos-duration') ||
@@ -148,9 +168,11 @@ class ScrollAnimator {
       null;
 
     const stagger = staggerAttr ? `${parseFloat(staggerAttr)}ms` : this.globalStagger;
+    const staggerDelay = `calc(${items} * ${stagger})`;
 
-    if (stagger) {
-      target.style.transitionDelay = `calc(${items} * ${stagger})`;
+    if (stagger || pageDelay > 0) {
+      target.style.transitionDelay =
+        pageDelay > 0 ? `calc(${pageDelay}ms + ${staggerDelay})` : staggerDelay;
 
       const transitionEndHandler = () => {
         target.style.transitionDelay = ``;
