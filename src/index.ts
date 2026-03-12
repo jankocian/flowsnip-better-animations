@@ -4,9 +4,9 @@ window.Webflow ||= [];
 
 const DEFAULT_DURATION = '360ms';
 const DEFAULT_STAGGER = '60ms';
-const DEFAULT_THRESHOLD = 0.2;
+const DEFAULT_THRESHOLD = 0;
 const TIMING_FN = 'cubic-bezier(0, 0, 0.2, 1)';
-const VERTICAL_OFFSET = 1 / 15;
+const VERTICAL_OFFSET = 1 / 10;
 const currentScript = document.currentScript as HTMLScriptElement | null;
 
 // Inject CSS immediately to avoid visual glitches before the DOM is fully loaded

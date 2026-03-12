@@ -1,5 +1,14 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.3.1
+
+### Patch Changes
+
+- Improved threshold/offset defaults.
+
+  - change the default visibility threshold from `0.2` to `0`
+  - increase the vertical observer offset from `1/15` to `1/10`
+
 ## 2.3.0
 
 ### Minor Changes

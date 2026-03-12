@@ -33,7 +33,7 @@ Do not use `async` for the script tag to ensure the styles are injected immediat
 - `aos="fade-in"`, `aos="fade-up-blur"`, `aos-children="fade-in"`, `aos-children="fade-up-blur"` (optional) - Defines the animation type, default is `fade-up`
 - `aos-duration` (optional) - Defines the duration of the animation for itself and/or nested elements 400ms
 - `aos-stagger` (optional) - Defines the stagger delay for itself and/or nested elements, default is 150ms
-- `aos-threshold` (optional) - On body element - defines the visibility threshold for triggering animations, default is 0.2 (20 %)
+- `aos-threshold` (optional) - On body element - defines the visibility threshold for triggering animations, default is 0
 - `aos-page-delay` (optional) - Delays only initially visible animations on page load; `body` overrides the script tag, default is 0ms
 
 Elements already visible on initial page load animate immediately, unless `aos-page-delay` is set.
