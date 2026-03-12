@@ -1,5 +1,11 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.2.2
+
+### Patch Changes
+
+- Improved stagger sort.
+
 ## 2.2.1
 
 ### Patch Changes

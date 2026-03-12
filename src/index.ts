@@ -106,13 +106,12 @@ class ScrollAnimator {
   }
 
   handleIntersect(entries: IntersectionObserverEntry[]) {
-    let items = 0;
+    const intersectingEntries = entries
+      .filter((entry) => entry.isIntersecting)
+      .sort((entryA, entryB) => this.sortEntriesByViewportPosition(entryA, entryB));
 
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        this.animateIn(entry.target as HTMLElement, items);
-        items += 1;
-      }
+    intersectingEntries.forEach((entry, items) => {
+      this.animateIn(entry.target as HTMLElement, items);
     });
   }
 
@@ -130,6 +129,24 @@ class ScrollAnimator {
 
   private getDocumentHeight() {
     return Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
+  }
+
+  private sortEntriesByViewportPosition(
+    entryA: IntersectionObserverEntry,
+    entryB: IntersectionObserverEntry
+  ) {
+    const topDifference = entryA.boundingClientRect.top - entryB.boundingClientRect.top;
+
+    if (topDifference !== 0) return topDifference;
+
+    const targetA = entryA.target;
+    const targetB = entryB.target;
+    const position = targetA.compareDocumentPosition(targetB);
+
+    if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+    if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+
+    return 0;
   }
 
   private animateIn(target: HTMLElement, items: number, pageDelay = 0) {
