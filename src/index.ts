@@ -74,7 +74,19 @@ class ScrollAnimator {
   initializeAnimations() {
     // Select elements with aos and children of elements with aos-children
     const elements = document.querySelectorAll('[aos], [aos-children] > *');
-    elements.forEach((element) => this.observer.observe(element));
+    let initialItems = 0;
+
+    elements.forEach((element) => {
+      const target = element as HTMLElement;
+
+      if (this.isInitiallyVisible(target)) {
+        this.animateIn(target, initialItems);
+        initialItems += 1;
+        return;
+      }
+
+      this.observer.observe(target);
+    });
   }
 
   handleIntersect(entries: IntersectionObserverEntry[]) {
@@ -82,46 +94,50 @@ class ScrollAnimator {
 
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
-        const target = entry.target as HTMLElement;
-
-        // Determine duration
-        const durationAttr =
-          target.getAttribute('aos-duration') ||
-          target.closest('[aos-duration]')?.getAttribute('aos-duration');
-        const duration = durationAttr
-          ? Number.isNaN(durationAttr)
-            ? durationAttr
-            : `${parseFloat(durationAttr)}ms`
-          : DEFAULT_DURATION;
-        target.style.setProperty('--duration', duration);
-
-        // Determine stagger
-        const staggerAttr =
-          target.getAttribute('aos-stagger') ||
-          target.closest('[aos-stagger]')?.getAttribute('aos-stagger') ||
-          null;
-
-        const stagger = staggerAttr ? `${parseFloat(staggerAttr)}ms` : this.globalStagger;
-
-        if (stagger) {
-          target.style.transitionDelay = `calc(${items} * ${stagger})`;
-
-          const transitionEndHandler = () => {
-            target.style.transitionDelay = ``;
-            target.removeEventListener('transitionend', transitionEndHandler);
-          };
-
-          target.addEventListener('transitionend', transitionEndHandler);
-        }
-
-        // Animate in
+        this.animateIn(entry.target as HTMLElement, items);
         items += 1;
-        target.classList.add('in-viewport');
-
-        // Stop observing once animated
-        this.observer.unobserve(target);
       }
     });
+  }
+
+  private isInitiallyVisible(target: HTMLElement) {
+    const { top, bottom } = target.getBoundingClientRect();
+    return top < window.innerHeight && bottom > 0;
+  }
+
+  private animateIn(target: HTMLElement, items: number) {
+    // Determine duration
+    const durationAttr =
+      target.getAttribute('aos-duration') ||
+      target.closest('[aos-duration]')?.getAttribute('aos-duration');
+    const duration = durationAttr
+      ? Number.isNaN(durationAttr)
+        ? durationAttr
+        : `${parseFloat(durationAttr)}ms`
+      : DEFAULT_DURATION;
+    target.style.setProperty('--duration', duration);
+
+    // Determine stagger
+    const staggerAttr =
+      target.getAttribute('aos-stagger') ||
+      target.closest('[aos-stagger]')?.getAttribute('aos-stagger') ||
+      null;
+
+    const stagger = staggerAttr ? `${parseFloat(staggerAttr)}ms` : this.globalStagger;
+
+    if (stagger) {
+      target.style.transitionDelay = `calc(${items} * ${stagger})`;
+
+      const transitionEndHandler = () => {
+        target.style.transitionDelay = ``;
+        target.removeEventListener('transitionend', transitionEndHandler);
+      };
+
+      target.addEventListener('transitionend', transitionEndHandler);
+    }
+
+    target.classList.add('in-viewport');
+    this.observer.unobserve(target);
   }
 }
 

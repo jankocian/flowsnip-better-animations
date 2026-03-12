@@ -32,6 +32,8 @@ Do not use `async` for the script tag to ensure the styles are injected immediat
 - `aos-stagger` (optional) - Defines the stagger delay for itself and/or nested elements, default is 150ms
 - `aos-threshold` (optional) - On body element - defines the visibility threshold for triggering animations, default is 0.2 (20 %)
 
+Elements already visible on initial page load animate immediately, even if they would otherwise be delayed by the vertical viewport offset.
+
 ### Examples
 
 ```
