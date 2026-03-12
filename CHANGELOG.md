@@ -1,5 +1,14 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.3.0
+
+### Minor Changes
+
+- Add fade-up-blur.
+
+  - add a new `fade-up-blur` animation variant for `aos` and `aos-children`
+  - document the new animation option in the README
+
 ## 2.2.2
 
 ### Patch Changes

@@ -40,6 +40,22 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
       transform: translateY(0);
     }
 
+    /* fade-up-blur */
+    [aos="fade-up-blur"],
+    [aos-children="fade-up-blur"] > * {
+      transition-property: opacity, transform, filter;
+      opacity: 0;
+      transform: translateY(16px);
+      filter: blur(6px);
+    }
+
+    [aos="fade-up-blur"].in-viewport,
+    [aos-children="fade-up-blur"] > *.in-viewport {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+
     /* fade-in */
     [aos="fade-in"],
     [aos-children="fade-in"] > * {

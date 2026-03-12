@@ -30,7 +30,7 @@ Do not use `async` for the script tag to ensure the styles are injected immediat
 
 - `aos` - Marks an element to be animated on scroll
 - `aos-children` - Marks an element whose children will be animated
-- `aos="fade-in"`, `aos-children="fade-in"` (optional) - Defines the animation type, default is `fade-up`
+- `aos="fade-in"`, `aos="fade-up-blur"`, `aos-children="fade-in"`, `aos-children="fade-up-blur"` (optional) - Defines the animation type, default is `fade-up`
 - `aos-duration` (optional) - Defines the duration of the animation for itself and/or nested elements 400ms
 - `aos-stagger` (optional) - Defines the stagger delay for itself and/or nested elements, default is 150ms
 - `aos-threshold` (optional) - On body element - defines the visibility threshold for triggering animations, default is 0.2 (20 %)
@@ -45,6 +45,7 @@ Elements near the end of the page automatically fall back to a no-offset observe
 <div>
   <div aos aos-duration="400">Content 1</div>
   <div aos="fade-in" aos-duration="800">Content 2</div>
+  <div aos="fade-up-blur">Content 3</div>
 </div>
 
 <ul aos-children aos-duration="300" aos-stagger="50">
