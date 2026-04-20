@@ -14,9 +14,11 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
   const style = document.createElement('style');
   style.innerHTML = `
   @media (prefers-reduced-motion: no-preference) {
-    /* aos global styles */
-    [aos],
-    [aos-children] > * {
+    /* aos global styles — :not(.aos-done) lets us cleanly drop ALL animation
+       styles once done, so the element reverts to its author-defined baseline
+       (no transform/filter, so no stacking context; user's own transitions untouched). */
+    [aos]:not(.aos-done),
+    [aos-children] > *:not(.aos-done) {
       transition-timing-function: ${TIMING_FN};
       transition-property: opacity, transform;
       transition-duration: var(--duration, ${DEFAULT_DURATION});
@@ -24,46 +26,46 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
 
     /* aos animations */
     /* fade-up - also default animation */
-    [aos=""],
-    [aos="fade-up"],
-    [aos-children=""] > *,
-    [aos-children="fade-up"] > * {
+    [aos=""]:not(.aos-done),
+    [aos="fade-up"]:not(.aos-done),
+    [aos-children=""] > *:not(.aos-done),
+    [aos-children="fade-up"] > *:not(.aos-done) {
       opacity: 0;
       transform: translateY(24px);
     }
 
-    [aos=""].in-viewport,
-    [aos="fade-up"].in-viewport,
-    [aos-children=""] > *.in-viewport,
-    [aos-children="fade-up"] > *.in-viewport {
+    [aos=""].in-viewport:not(.aos-done),
+    [aos="fade-up"].in-viewport:not(.aos-done),
+    [aos-children=""] > *.in-viewport:not(.aos-done),
+    [aos-children="fade-up"] > *.in-viewport:not(.aos-done) {
       opacity: 1;
       transform: translateY(0);
     }
 
     /* fade-up-blur */
-    [aos="fade-up-blur"],
-    [aos-children="fade-up-blur"] > * {
+    [aos="fade-up-blur"]:not(.aos-done),
+    [aos-children="fade-up-blur"] > *:not(.aos-done) {
       transition-property: opacity, transform, filter;
       opacity: 0;
       transform: translateY(16px);
       filter: blur(6px);
     }
 
-    [aos="fade-up-blur"].in-viewport,
-    [aos-children="fade-up-blur"] > *.in-viewport {
+    [aos="fade-up-blur"].in-viewport:not(.aos-done),
+    [aos-children="fade-up-blur"] > *.in-viewport:not(.aos-done) {
       opacity: 1;
       transform: translateY(0);
       filter: blur(0);
     }
 
     /* fade-in */
-    [aos="fade-in"],
-    [aos-children="fade-in"] > * {
+    [aos="fade-in"]:not(.aos-done),
+    [aos-children="fade-in"] > *:not(.aos-done) {
       opacity: 0;
     }
 
-    [aos="fade-in"].in-viewport,
-    [aos-children="fade-in"] > *.in-viewport {
+    [aos="fade-in"].in-viewport:not(.aos-done),
+    [aos-children="fade-in"] > *.in-viewport:not(.aos-done) {
       opacity: 1;
     }
   }
@@ -186,14 +188,16 @@ class ScrollAnimator {
     if (stagger || pageDelay > 0) {
       target.style.transitionDelay =
         pageDelay > 0 ? `calc(${pageDelay}ms + ${staggerDelay})` : staggerDelay;
-
-      const transitionEndHandler = () => {
-        target.style.transitionDelay = ``;
-        target.removeEventListener('transitionend', transitionEndHandler);
-      };
-
-      target.addEventListener('transitionend', transitionEndHandler);
     }
+
+    const onTransitionEnd = (event: TransitionEvent) => {
+      if (event.target !== target) return;
+      target.style.transitionDelay = '';
+      target.style.removeProperty('--duration');
+      target.classList.add('aos-done');
+      target.removeEventListener('transitionend', onTransitionEnd);
+    };
+    target.addEventListener('transitionend', onTransitionEnd);
 
     target.classList.add('in-viewport');
     this.observer.unobserve(target);
