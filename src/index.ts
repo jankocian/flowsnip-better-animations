@@ -2,10 +2,10 @@ import { getDurationValue, getPageDelay, getStaggerValue } from './utils/animati
 
 window.Webflow ||= [];
 
-const DEFAULT_DURATION = '360ms';
+const DEFAULT_DURATION = '480ms';
 const DEFAULT_STAGGER = '60ms';
 const DEFAULT_THRESHOLD = 0;
-const TIMING_FN = 'cubic-bezier(0, 0, 0.2, 1)';
+const TIMING_FN = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const VERTICAL_OFFSET = 1 / 10;
 const currentScript = document.currentScript as HTMLScriptElement | null;
 
@@ -22,6 +22,7 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
       transition-timing-function: ${TIMING_FN};
       transition-property: opacity, transform;
       transition-duration: var(--duration, ${DEFAULT_DURATION});
+      will-change: opacity, transform;
     }
 
     /* aos animations */
@@ -31,7 +32,7 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
     [aos-children=""] > *:not(.aos-done),
     [aos-children="fade-up"] > *:not(.aos-done) {
       opacity: 0;
-      transform: translateY(24px);
+      transform: translateY(24px) scale(0.96);
     }
 
     [aos=""].in-viewport:not(.aos-done),
@@ -39,22 +40,23 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
     [aos-children=""] > *.in-viewport:not(.aos-done),
     [aos-children="fade-up"] > *.in-viewport:not(.aos-done) {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) scale(1);
     }
 
     /* fade-up-blur */
     [aos="fade-up-blur"]:not(.aos-done),
     [aos-children="fade-up-blur"] > *:not(.aos-done) {
       transition-property: opacity, transform, filter;
+      will-change: opacity, transform, filter;
       opacity: 0;
-      transform: translateY(16px);
+      transform: translateY(24px) scale(0.96);
       filter: blur(6px);
     }
 
     [aos="fade-up-blur"].in-viewport:not(.aos-done),
     [aos-children="fade-up-blur"] > *.in-viewport:not(.aos-done) {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) scale(1);
       filter: blur(0);
     }
 
