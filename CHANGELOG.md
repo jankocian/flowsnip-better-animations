@@ -1,5 +1,11 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.5.1
+
+### Patch Changes
+
+- Make fast-scroll reveals deterministic at the end of the page by using one ordered pending queue and a scroll-direction trigger check, while still revealing footer-bottom items when the viewport reaches the page bottom.
+
 ## 2.5.0
 
 ### Minor Changes

@@ -75,13 +75,13 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
 
 class ScrollAnimator {
   private observer: IntersectionObserver;
-  private edgeObserver: IntersectionObserver;
   private pendingTargets = new Set<HTMLElement>();
   private revealFrame: number | null = null;
   private globalStagger: string;
   private threshold: number;
-  private bottomOffsetBoundary: number;
   private pageDelay: number;
+  private lastScrollY = window.scrollY;
+  private isScrollingDown = true;
 
   constructor() {
     const thresholdAttr = document.documentElement.getAttribute('aos-threshold');
@@ -92,7 +92,6 @@ class ScrollAnimator {
         ? parsedThreshold
         : DEFAULT_THRESHOLD;
     this.globalStagger = getStaggerValue(globalStaggerAttr) ?? DEFAULT_STAGGER;
-    this.bottomOffsetBoundary = this.getDocumentHeight() - window.innerHeight * VERTICAL_OFFSET;
     this.pageDelay = getPageDelay(currentScript);
 
     this.observer = new IntersectionObserver(this.handleIntersect.bind(this), {
@@ -100,10 +99,8 @@ class ScrollAnimator {
       rootMargin: `${-VERTICAL_OFFSET * 100}% 0% ${-VERTICAL_OFFSET * 100}% 0%`,
       threshold: this.threshold, // Element visibility threshold
     });
-    this.edgeObserver = new IntersectionObserver(this.handleIntersect.bind(this), {
-      root: null,
-      threshold: this.threshold,
-    });
+    window.addEventListener('scroll', this.handleScroll, { passive: true });
+    window.addEventListener('resize', this.scheduleRevealFlush);
     this.initializeAnimations();
   }
 
@@ -118,12 +115,6 @@ class ScrollAnimator {
       if (this.isInitiallyVisible(target)) {
         this.animateIn(target, initialItems, this.pageDelay);
         initialItems += 1;
-        return;
-      }
-
-      if (this.shouldIgnoreBottomOffset(target)) {
-        this.pendingTargets.add(target);
-        this.edgeObserver.observe(target);
         return;
       }
 
@@ -143,25 +134,25 @@ class ScrollAnimator {
     return top < window.innerHeight && bottom > 0;
   }
 
-  private shouldIgnoreBottomOffset(target: HTMLElement) {
-    const rect = target.getBoundingClientRect();
-    const targetBottom = rect.bottom + window.scrollY;
-
-    return rect.height > 0 && targetBottom > this.bottomOffsetBoundary;
-  }
-
   private getDocumentHeight() {
     return Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
   }
 
-  private scheduleRevealFlush() {
+  private handleScroll = () => {
+    const { scrollY } = window;
+    this.isScrollingDown = scrollY >= this.lastScrollY;
+    this.lastScrollY = scrollY;
+    this.scheduleRevealFlush();
+  };
+
+  private scheduleRevealFlush = () => {
     if (this.revealFrame !== null) return;
 
     this.revealFrame = window.requestAnimationFrame(() => {
       this.revealFrame = null;
       this.flushReadyTargets();
     });
-  }
+  };
 
   private flushReadyTargets() {
     const readyTargets = Array.from(this.pendingTargets)
@@ -177,20 +168,18 @@ class ScrollAnimator {
     const rect = target.getBoundingClientRect();
     if (rect.height <= 0) return false;
 
-    const verticalOffset = this.shouldIgnoreBottomOffset(target)
-      ? 0
-      : window.innerHeight * VERTICAL_OFFSET;
+    const verticalOffset = this.isAtPageBottom() ? 0 : window.innerHeight * VERTICAL_OFFSET;
     const viewportTop = verticalOffset;
     const viewportBottom = window.innerHeight - verticalOffset;
-    const visibleTop = Math.max(rect.top, viewportTop);
-    const visibleBottom = Math.min(rect.bottom, viewportBottom);
-    const visibleHeight = visibleBottom - visibleTop;
+    const thresholdOffset = rect.height * this.threshold;
 
-    if (visibleHeight <= 0) return false;
+    return this.isScrollingDown
+      ? rect.top + thresholdOffset <= viewportBottom
+      : rect.bottom - thresholdOffset >= viewportTop;
+  }
 
-    const visibleRatio = Math.min(visibleHeight / rect.height, 1);
-
-    return this.threshold <= 0 || visibleRatio >= this.threshold;
+  private isAtPageBottom() {
+    return window.scrollY + window.innerHeight >= this.getDocumentHeight() - 1;
   }
 
   private sortElementsByViewportPosition(targetA: Element, targetB: Element) {
@@ -244,7 +233,6 @@ class ScrollAnimator {
 
     target.classList.add('in-viewport');
     this.observer.unobserve(target);
-    this.edgeObserver.unobserve(target);
   }
 }
 
