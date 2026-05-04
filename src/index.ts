@@ -32,7 +32,7 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
     [aos-children=""] > *:not(.aos-done),
     [aos-children="fade-up"] > *:not(.aos-done) {
       opacity: 0;
-      transform: translateY(24px) scale(0.96);
+      transform: translateY(24px) scale(0.98);
     }
 
     [aos=""].in-viewport:not(.aos-done),
@@ -49,7 +49,7 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
       transition-property: opacity, transform, filter;
       will-change: opacity, transform, filter;
       opacity: 0;
-      transform: translateY(24px) scale(0.96);
+      transform: translateY(24px) scale(0.98);
       filter: blur(6px);
     }
 
@@ -166,13 +166,36 @@ class ScrollAnimator {
   }
 
   private flushReadyTargets() {
-    const readyTargets = Array.from(this.pendingTargets)
-      .filter((target) => this.isReadyToAnimate(target))
-      .sort((targetA, targetB) => this.sortElementsByViewportPosition(targetA, targetB));
+    const readyTargets = this.collectReadyTargets().sort((targetA, targetB) =>
+      this.sortElementsByViewportPosition(targetA, targetB)
+    );
 
     readyTargets.forEach((target, items) => {
       this.animateIn(target, items);
     });
+  }
+
+  private collectReadyTargets() {
+    const readyTargets = new Set<HTMLElement>();
+
+    this.pendingTargets.forEach((target) => {
+      if (!this.isReadyToAnimate(target)) return;
+
+      const staggerParent = this.getStaggerParent(target);
+      if (!staggerParent) {
+        readyTargets.add(target);
+        return;
+      }
+
+      for (const child of Array.from(staggerParent.children)) {
+        if (!(child instanceof HTMLElement) || !this.pendingTargets.has(child)) continue;
+
+        readyTargets.add(child);
+        if (child === target) break;
+      }
+    });
+
+    return Array.from(readyTargets);
   }
 
   private isReadyToAnimate(target: HTMLElement) {
@@ -218,13 +241,32 @@ class ScrollAnimator {
     });
   }
 
+  private getStaggerParent(target: HTMLElement) {
+    const { parentElement } = target;
+
+    return parentElement?.hasAttribute('aos-children') ? parentElement : null;
+  }
+
   private sortElementsByViewportPosition(targetA: Element, targetB: Element) {
+    if (targetA instanceof HTMLElement && targetB instanceof HTMLElement) {
+      const parentA = this.getStaggerParent(targetA);
+      const parentB = this.getStaggerParent(targetB);
+
+      if (parentA && parentA === parentB) {
+        return this.sortElementsByDocumentPosition(targetA, targetB);
+      }
+    }
+
     const rectA = targetA.getBoundingClientRect();
     const rectB = targetB.getBoundingClientRect();
     const topDifference = rectA.top - rectB.top;
 
     if (topDifference !== 0) return topDifference;
 
+    return this.sortElementsByDocumentPosition(targetA, targetB);
+  }
+
+  private sortElementsByDocumentPosition(targetA: Element, targetB: Element) {
     const position = targetA.compareDocumentPosition(targetB);
 
     if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;

@@ -1,5 +1,11 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.5.3
+
+### Patch Changes
+
+- Keep aos-children stagger groups deterministic by revealing earlier pending siblings before a ready later child, preventing fast footer scrolls from assigning the first stagger slot to the last visible item.
+
 ## 2.5.2
 
 ### Patch Changes
