@@ -143,3 +143,77 @@ test('fast downward scroll preserves order when earlier children were skipped pa
     .poll(() => page.$$eval('footer a', (links) => links.map((link) => link.style.transitionDelay)))
     .toEqual(['calc(0s)', 'calc(0.05s)', 'calc(0.1s)', 'calc(0.15s)', 'calc(0.2s)']);
 });
+
+test('display-none parents reset animated children for the next reveal', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.setContent(`
+    <style>
+      body { margin: 0; font-family: sans-serif; }
+      nav { display: none; }
+      nav.open { display: block; }
+      a { display: block; height: 32px; margin: 8px 0; }
+    </style>
+    <nav aos-children aos-duration="10000" aos-stagger="50">
+      <a href="#one">One</a>
+      <a href="#two">Two</a>
+      <a href="#three">Three</a>
+    </nav>
+  `);
+
+  await installAnimationLibrary(page);
+
+  await page.evaluate(() => {
+    const menu = document.querySelector('nav');
+    const firstLink = document.querySelector('nav a');
+    const normalObserver = window.__aosObservers.find((observer) => observer.options.rootMargin);
+
+    if (!menu || !firstLink || !normalObserver) throw new Error('Test setup failed.');
+
+    menu.classList.add('open');
+    normalObserver.trigger([{ target: firstLink, isIntersecting: true }]);
+  });
+
+  await expect
+    .poll(() => page.$$eval('nav a', (links) => links.map((link) => link.className)))
+    .toEqual(['in-viewport', 'in-viewport', 'in-viewport']);
+
+  await page.evaluate(() => {
+    document.querySelectorAll('nav a').forEach((link) => {
+      link.dispatchEvent(new TransitionEvent('transitionend', { bubbles: true }));
+    });
+  });
+
+  await expect
+    .poll(() => page.$$eval('nav a', (links) => links.map((link) => link.className)))
+    .toEqual(['in-viewport aos-done', 'in-viewport aos-done', 'in-viewport aos-done']);
+
+  await page.evaluate(() => {
+    const menu = document.querySelector('nav');
+    const firstLink = document.querySelector('nav a');
+    const normalObserver = window.__aosObservers.find((observer) => observer.options.rootMargin);
+
+    if (!menu || !firstLink || !normalObserver) throw new Error('Test setup failed.');
+
+    menu.classList.remove('open');
+    normalObserver.trigger([{ target: firstLink, isIntersecting: false }]);
+  });
+
+  await expect
+    .poll(() => page.$$eval('nav a', (links) => links.map((link) => link.className)))
+    .toEqual(['', '', '']);
+
+  await page.evaluate(() => {
+    const menu = document.querySelector('nav');
+    const lastLink = document.querySelector('nav a:last-child');
+    const normalObserver = window.__aosObservers.find((observer) => observer.options.rootMargin);
+
+    if (!menu || !lastLink || !normalObserver) throw new Error('Test setup failed.');
+
+    menu.classList.add('open');
+    normalObserver.trigger([{ target: lastLink, isIntersecting: true }]);
+  });
+
+  await expect
+    .poll(() => page.$$eval('nav a', (links) => links.map((link) => link.className)))
+    .toEqual(['in-viewport', 'in-viewport', 'in-viewport']);
+});

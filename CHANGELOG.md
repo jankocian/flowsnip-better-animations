@@ -1,5 +1,11 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.5.2
+
+### Patch Changes
+
+- Replay completed animations when an element loses layout because an ancestor becomes display none, allowing hidden mega-menu content to animate again on the next reveal.
+
 ## 2.5.1
 
 ### Patch Changes

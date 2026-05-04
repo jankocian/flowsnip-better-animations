@@ -77,7 +77,9 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
 
 class ScrollAnimator {
   private observer: IntersectionObserver;
+  private resizeObserver: ResizeObserver;
   private pendingTargets = new Set<HTMLElement>();
+  private completedTargets = new Set<HTMLElement>();
   private revealFrame: number | null = null;
   private globalStagger: string;
   private threshold: number;
@@ -101,6 +103,7 @@ class ScrollAnimator {
       rootMargin: `${-VERTICAL_OFFSET * 100}% 0% ${-VERTICAL_OFFSET * 100}% 0%`,
       threshold: this.threshold, // Element visibility threshold
     });
+    this.resizeObserver = new ResizeObserver(this.handleResize.bind(this));
     window.addEventListener('scroll', this.handleScroll, { passive: true });
     window.addEventListener('resize', this.scheduleRevealFlush);
     this.initializeAnimations();
@@ -156,6 +159,12 @@ class ScrollAnimator {
     });
   };
 
+  private handleResize(entries: ResizeObserverEntry[]) {
+    if (!entries.some((entry) => this.shouldReset(entry.target as HTMLElement))) return;
+
+    this.resetHiddenTargets();
+  }
+
   private flushReadyTargets() {
     const readyTargets = Array.from(this.pendingTargets)
       .filter((target) => this.isReadyToAnimate(target))
@@ -182,6 +191,31 @@ class ScrollAnimator {
 
   private isAtPageBottom() {
     return window.scrollY + window.innerHeight >= this.getDocumentHeight() - 1;
+  }
+
+  // Replay completed animations only when the element leaves layout entirely,
+  // such as when a mega-menu ancestor switches to display: none.
+  private shouldReset(target: HTMLElement) {
+    const hasAnimated =
+      target.classList.contains('in-viewport') || target.classList.contains('aos-done');
+
+    return hasAnimated && target.getClientRects().length === 0;
+  }
+
+  private reset(target: HTMLElement) {
+    target.classList.remove('in-viewport', 'aos-done');
+    target.style.transitionDelay = '';
+    target.style.removeProperty('--duration');
+    this.completedTargets.delete(target);
+    this.pendingTargets.add(target);
+    this.resizeObserver.unobserve(target);
+    this.observer.observe(target);
+  }
+
+  private resetHiddenTargets() {
+    Array.from(this.completedTargets).forEach((target) => {
+      if (this.shouldReset(target)) this.reset(target);
+    });
   }
 
   private sortElementsByViewportPosition(targetA: Element, targetB: Element) {
@@ -234,6 +268,8 @@ class ScrollAnimator {
     target.addEventListener('transitionend', onTransitionEnd);
 
     target.classList.add('in-viewport');
+    this.completedTargets.add(target);
+    this.resizeObserver.observe(target);
     this.observer.unobserve(target);
   }
 }
