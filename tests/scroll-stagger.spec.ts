@@ -144,68 +144,6 @@ test('fast downward scroll preserves order when earlier children were skipped pa
     .toEqual(['calc(0s)', 'calc(0.05s)', 'calc(0.1s)', 'calc(0.15s)', 'calc(0.2s)']);
 });
 
-test('aos-children reveals earlier pending siblings before a ready later child', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await page.setContent(`
-    <style>
-      body { margin: 0; font-family: sans-serif; }
-      .spacer { height: 1200px; }
-      footer { padding: 24px 0 160px; }
-      a { display: block; height: 32px; margin: 8px 0; }
-    </style>
-    <div class="spacer"></div>
-    <footer aos-children aos-duration="10000" aos-stagger="50">
-      <a href="#one">One</a>
-      <a href="#two">Two</a>
-      <a href="#three">Three</a>
-    </footer>
-  `);
-
-  await installAnimationLibrary(page);
-
-  await page.evaluate(() => {
-    const links = Array.from(document.querySelectorAll('footer a'));
-    const normalObserver = window.__aosObservers.find((observer) => observer.options.rootMargin);
-
-    if (links.length !== 3 || !normalObserver) throw new Error('Test setup failed.');
-
-    const rects = [
-      { top: 900, bottom: 932 },
-      { top: 940, bottom: 972 },
-      { top: 500, bottom: 532 },
-    ];
-
-    links.forEach((link, index) => {
-      link.getBoundingClientRect = () =>
-        ({
-          x: 0,
-          y: rects[index].top,
-          width: 120,
-          height: 32,
-          top: rects[index].top,
-          right: 120,
-          bottom: rects[index].bottom,
-          left: 0,
-          toJSON: () => '',
-        }) as DOMRect;
-    });
-
-    normalObserver.trigger([{ target: links[2], isIntersecting: true }]);
-  });
-
-  await expect
-    .poll(() =>
-      page.$$eval('footer a', (links) => links.map((link) => link.classList.contains('in-viewport')))
-    )
-    .toEqual([true, true, true]);
-
-  await expect
-    .poll(() => page.$$eval('footer a', (links) => links.map((link) => link.style.transitionDelay)))
-    .toEqual(['calc(0s)', 'calc(0.05s)', 'calc(0.1s)']);
-});
-
 test('offscreen earlier elements do not delay footer reveal after jumping to page bottom', async ({
   page,
 }) => {

@@ -161,36 +161,13 @@ class ScrollAnimator {
   }
 
   private flushReadyTargets() {
-    const readyTargets = this.collectReadyTargets().sort((targetA, targetB) =>
-      this.sortElementsByViewportPosition(targetA, targetB)
-    );
+    const readyTargets = Array.from(this.pendingTargets)
+      .filter((target) => this.isReadyToAnimate(target))
+      .sort((targetA, targetB) => this.sortElementsByViewportPosition(targetA, targetB));
 
     readyTargets.forEach((target, items) => {
       this.animateIn(target, items);
     });
-  }
-
-  private collectReadyTargets() {
-    const readyTargets = new Set<HTMLElement>();
-
-    this.pendingTargets.forEach((target) => {
-      if (!this.isReadyToAnimate(target)) return;
-
-      const staggerParent = this.getStaggerParent(target);
-      if (!staggerParent) {
-        readyTargets.add(target);
-        return;
-      }
-
-      for (const child of Array.from(staggerParent.children)) {
-        if (!(child instanceof HTMLElement) || !this.pendingTargets.has(child)) continue;
-
-        readyTargets.add(child);
-        if (child === target) break;
-      }
-    });
-
-    return Array.from(readyTargets);
   }
 
   private isReadyToAnimate(target: HTMLElement) {
@@ -240,32 +217,13 @@ class ScrollAnimator {
     });
   }
 
-  private getStaggerParent(target: HTMLElement) {
-    const { parentElement } = target;
-
-    return parentElement?.hasAttribute('aos-children') ? parentElement : null;
-  }
-
   private sortElementsByViewportPosition(targetA: Element, targetB: Element) {
-    if (targetA instanceof HTMLElement && targetB instanceof HTMLElement) {
-      const parentA = this.getStaggerParent(targetA);
-      const parentB = this.getStaggerParent(targetB);
-
-      if (parentA && parentA === parentB) {
-        return this.sortElementsByDocumentPosition(targetA, targetB);
-      }
-    }
-
     const rectA = targetA.getBoundingClientRect();
     const rectB = targetB.getBoundingClientRect();
     const topDifference = rectA.top - rectB.top;
 
     if (topDifference !== 0) return topDifference;
 
-    return this.sortElementsByDocumentPosition(targetA, targetB);
-  }
-
-  private sortElementsByDocumentPosition(targetA: Element, targetB: Element) {
     const position = targetA.compareDocumentPosition(targetB);
 
     if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;

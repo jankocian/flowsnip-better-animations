@@ -1,5 +1,11 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.5.5
+
+### Patch Changes
+
+- Fix premature footer animations by restoring the original rule that only currently ready elements animate, removing the grouped sibling reveal behavior that could mark offscreen aos-children items as completed.
+
 ## 2.5.4
 
 ### Patch Changes
