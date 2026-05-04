@@ -76,14 +76,21 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
 class ScrollAnimator {
   private observer: IntersectionObserver;
   private edgeObserver: IntersectionObserver;
+  private pendingTargets = new Set<HTMLElement>();
+  private revealFrame: number | null = null;
   private globalStagger: string;
+  private threshold: number;
   private bottomOffsetBoundary: number;
   private pageDelay: number;
 
   constructor() {
     const thresholdAttr = document.documentElement.getAttribute('aos-threshold');
     const globalStaggerAttr = document.documentElement.getAttribute('aos-stagger');
-    const threshold = thresholdAttr ? parseFloat(thresholdAttr) : DEFAULT_THRESHOLD;
+    const parsedThreshold = thresholdAttr ? parseFloat(thresholdAttr) : DEFAULT_THRESHOLD;
+    this.threshold =
+      Number.isFinite(parsedThreshold) && parsedThreshold >= 0 && parsedThreshold <= 1
+        ? parsedThreshold
+        : DEFAULT_THRESHOLD;
     this.globalStagger = getStaggerValue(globalStaggerAttr) ?? DEFAULT_STAGGER;
     this.bottomOffsetBoundary = this.getDocumentHeight() - window.innerHeight * VERTICAL_OFFSET;
     this.pageDelay = getPageDelay(currentScript);
@@ -91,11 +98,11 @@ class ScrollAnimator {
     this.observer = new IntersectionObserver(this.handleIntersect.bind(this), {
       root: null,
       rootMargin: `${-VERTICAL_OFFSET * 100}% 0% ${-VERTICAL_OFFSET * 100}% 0%`,
-      threshold, // Element visibility threshold
+      threshold: this.threshold, // Element visibility threshold
     });
     this.edgeObserver = new IntersectionObserver(this.handleIntersect.bind(this), {
       root: null,
-      threshold,
+      threshold: this.threshold,
     });
     this.initializeAnimations();
   }
@@ -115,22 +122,20 @@ class ScrollAnimator {
       }
 
       if (this.shouldIgnoreBottomOffset(target)) {
+        this.pendingTargets.add(target);
         this.edgeObserver.observe(target);
         return;
       }
 
+      this.pendingTargets.add(target);
       this.observer.observe(target);
     });
   }
 
   handleIntersect(entries: IntersectionObserverEntry[]) {
-    const intersectingEntries = entries
-      .filter((entry) => entry.isIntersecting)
-      .sort((entryA, entryB) => this.sortEntriesByViewportPosition(entryA, entryB));
+    if (!entries.some((entry) => entry.isIntersecting)) return;
 
-    intersectingEntries.forEach((entry, items) => {
-      this.animateIn(entry.target as HTMLElement, items);
-    });
+    this.scheduleRevealFlush();
   }
 
   private isInitiallyVisible(target: HTMLElement) {
@@ -149,16 +154,52 @@ class ScrollAnimator {
     return Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
   }
 
-  private sortEntriesByViewportPosition(
-    entryA: IntersectionObserverEntry,
-    entryB: IntersectionObserverEntry
-  ) {
-    const topDifference = entryA.boundingClientRect.top - entryB.boundingClientRect.top;
+  private scheduleRevealFlush() {
+    if (this.revealFrame !== null) return;
+
+    this.revealFrame = window.requestAnimationFrame(() => {
+      this.revealFrame = null;
+      this.flushReadyTargets();
+    });
+  }
+
+  private flushReadyTargets() {
+    const readyTargets = Array.from(this.pendingTargets)
+      .filter((target) => this.isReadyToAnimate(target))
+      .sort((targetA, targetB) => this.sortElementsByViewportPosition(targetA, targetB));
+
+    readyTargets.forEach((target, items) => {
+      this.animateIn(target, items);
+    });
+  }
+
+  private isReadyToAnimate(target: HTMLElement) {
+    const rect = target.getBoundingClientRect();
+    if (rect.height <= 0) return false;
+
+    const verticalOffset = this.shouldIgnoreBottomOffset(target)
+      ? 0
+      : window.innerHeight * VERTICAL_OFFSET;
+    const viewportTop = verticalOffset;
+    const viewportBottom = window.innerHeight - verticalOffset;
+    const visibleTop = Math.max(rect.top, viewportTop);
+    const visibleBottom = Math.min(rect.bottom, viewportBottom);
+    const visibleHeight = visibleBottom - visibleTop;
+
+    if (visibleHeight <= 0) return false;
+
+    const visibleRatio = Math.min(visibleHeight / rect.height, 1);
+
+    return this.threshold <= 0 || visibleRatio >= this.threshold;
+  }
+
+  private sortElementsByViewportPosition(targetA: Element, targetB: Element) {
+    const rectA = targetA.getBoundingClientRect();
+    const rectB = targetB.getBoundingClientRect();
+    const topDifference = rectA.top - rectB.top;
 
     if (topDifference !== 0) return topDifference;
 
-    const targetA = entryA.target;
-    const targetB = entryB.target;
     const position = targetA.compareDocumentPosition(targetB);
 
     if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
@@ -168,6 +209,8 @@ class ScrollAnimator {
   }
 
   private animateIn(target: HTMLElement, items: number, pageDelay = 0) {
+    this.pendingTargets.delete(target);
+
     // Determine duration
     const durationAttr =
       target.getAttribute('aos-duration') ||

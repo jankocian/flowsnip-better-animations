@@ -1,5 +1,11 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.5.0
+
+### Minor Changes
+
+- Fix fast-scroll stagger ordering by revealing all currently ready pending elements in viewport/document order instead of relying on IntersectionObserver callback batch order.
+
 ## 2.3.1
 
 ### Patch Changes
