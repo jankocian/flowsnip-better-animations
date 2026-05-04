@@ -1,5 +1,11 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.5.4
+
+### Patch Changes
+
+- Fix footer refresh delays by only treating currently visible pending elements as ready, while preserving deterministic sibling ordering inside aos-children groups.
+
 ## 2.5.3
 
 ### Patch Changes

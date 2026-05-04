@@ -84,8 +84,6 @@ class ScrollAnimator {
   private globalStagger: string;
   private threshold: number;
   private pageDelay: number;
-  private lastScrollY = window.scrollY;
-  private isScrollingDown = true;
 
   constructor() {
     const thresholdAttr = document.documentElement.getAttribute('aos-threshold');
@@ -144,9 +142,6 @@ class ScrollAnimator {
   }
 
   private handleScroll = () => {
-    const { scrollY } = window;
-    this.isScrollingDown = scrollY >= this.lastScrollY;
-    this.lastScrollY = scrollY;
     this.scheduleRevealFlush();
   };
 
@@ -205,11 +200,15 @@ class ScrollAnimator {
     const verticalOffset = this.isAtPageBottom() ? 0 : window.innerHeight * VERTICAL_OFFSET;
     const viewportTop = verticalOffset;
     const viewportBottom = window.innerHeight - verticalOffset;
-    const thresholdOffset = rect.height * this.threshold;
+    const visibleTop = Math.max(rect.top, viewportTop);
+    const visibleBottom = Math.min(rect.bottom, viewportBottom);
+    const visibleHeight = visibleBottom - visibleTop;
 
-    return this.isScrollingDown
-      ? rect.top + thresholdOffset <= viewportBottom
-      : rect.bottom - thresholdOffset >= viewportTop;
+    if (visibleHeight <= 0) return false;
+
+    const visibleRatio = Math.min(visibleHeight / rect.height, 1);
+
+    return this.threshold <= 0 || visibleRatio >= this.threshold;
   }
 
   private isAtPageBottom() {

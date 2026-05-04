@@ -206,6 +206,77 @@ test('aos-children reveals earlier pending siblings before a ready later child',
     .toEqual(['calc(0s)', 'calc(0.05s)', 'calc(0.1s)']);
 });
 
+test('offscreen earlier elements do not delay footer reveal after jumping to page bottom', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.setContent(`
+    <style>
+      body { margin: 0; font-family: sans-serif; }
+      .spacer { height: 1000px; }
+      .above { display: block; height: 40px; margin: 8px 0; }
+      footer { padding: 24px 0 160px; }
+      footer a { display: block; height: 32px; margin: 8px 0; }
+    </style>
+    <div class="spacer"></div>
+    <div>
+      ${Array.from({ length: 40 }, (_, index) => `<div class="above" aos>Above ${index}</div>`).join('')}
+    </div>
+    <footer aos-children aos-duration="10000" aos-stagger="50">
+      <a href="#one">One</a>
+      <a href="#two">Two</a>
+      <a href="#three">Three</a>
+    </footer>
+  `);
+
+  await installAnimationLibrary(page);
+
+  await page.evaluate(() => {
+    const aboveItems = Array.from(document.querySelectorAll('.above'));
+    const footerLinks = Array.from(document.querySelectorAll('footer a'));
+    const lastLink = document.querySelector('footer a:last-child');
+    const normalObserver = window.__aosObservers.find((observer) => observer.options.rootMargin);
+
+    if (footerLinks.length !== 3 || !lastLink || !normalObserver) throw new Error('Test setup failed.');
+
+    aboveItems.forEach((item, index) => {
+      item.getBoundingClientRect = () =>
+        ({
+          x: 0,
+          y: -2000 + index * 48,
+          width: 120,
+          height: 40,
+          top: -2000 + index * 48,
+          right: 120,
+          bottom: -1960 + index * 48,
+          left: 0,
+          toJSON: () => '',
+        }) as DOMRect;
+    });
+
+    footerLinks.forEach((link, index) => {
+      link.getBoundingClientRect = () =>
+        ({
+          x: 0,
+          y: 500 + index * 40,
+          width: 120,
+          height: 32,
+          top: 500 + index * 40,
+          right: 120,
+          bottom: 532 + index * 40,
+          left: 0,
+          toJSON: () => '',
+        }) as DOMRect;
+    });
+
+    normalObserver.trigger([{ target: lastLink, isIntersecting: true }]);
+  });
+
+  await expect
+    .poll(() => page.$$eval('footer a', (links) => links.map((link) => link.style.transitionDelay)))
+    .toEqual(['calc(0s)', 'calc(0.05s)', 'calc(0.1s)']);
+});
+
 test('display-none parents reset animated children for the next reveal', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.setContent(`
