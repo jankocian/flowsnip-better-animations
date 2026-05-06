@@ -1,4 +1,9 @@
-import { getDurationValue, getPageDelay, getStaggerValue } from './utils/animation-attributes';
+import {
+  getDurationValue,
+  getPageDelay,
+  getStaggerValue,
+  getThreshold,
+} from './utils/animation-attributes';
 
 window.Webflow ||= [];
 
@@ -7,6 +12,7 @@ const DEFAULT_STAGGER = '60ms';
 const DEFAULT_THRESHOLD = 0;
 const TIMING_FN = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const VERTICAL_OFFSET = 1 / 10;
+const TARGET_SELECTOR = '[aos], [aos-children] > *';
 const currentScript = document.currentScript as HTMLScriptElement | null;
 
 // Inject CSS immediately to avoid visual glitches before the DOM is fully loaded
@@ -14,9 +20,9 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
   const style = document.createElement('style');
   style.innerHTML = `
   @media (prefers-reduced-motion: no-preference) {
-    /* aos global styles — :not(.aos-done) lets us cleanly drop ALL animation
-       styles once done, so the element reverts to its author-defined baseline
-       (no transform/filter, so no stacking context; user's own transitions untouched). */
+    /* :not(.aos-done) lets us cleanly drop ALL animation styles once done, so the
+       element reverts to its author-defined baseline (no transform/filter, so no
+       stacking context; user's own transitions untouched). */
     [aos]:not(.aos-done),
     [aos-children] > *:not(.aos-done) {
       transition-timing-function: ${TIMING_FN};
@@ -25,8 +31,7 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
       will-change: opacity, transform;
     }
 
-    /* aos animations */
-    /* fade-up - also default animation */
+    /* fade-up (default) */
     [aos=""]:not(.aos-done),
     [aos="fade-up"]:not(.aos-done),
     [aos-children=""] > *:not(.aos-done),
@@ -78,6 +83,7 @@ const currentScript = document.currentScript as HTMLScriptElement | null;
 class ScrollAnimator {
   private observer: IntersectionObserver;
   private resizeObserver: ResizeObserver;
+  private mutationObserver: MutationObserver;
   private pendingTargets = new Set<HTMLElement>();
   private completedTargets = new Set<HTMLElement>();
   private revealFrame: number | null = null;
@@ -86,64 +92,98 @@ class ScrollAnimator {
   private pageDelay: number;
 
   constructor() {
-    const thresholdAttr = document.documentElement.getAttribute('aos-threshold');
-    const globalStaggerAttr = document.documentElement.getAttribute('aos-stagger');
-    const parsedThreshold = thresholdAttr ? parseFloat(thresholdAttr) : DEFAULT_THRESHOLD;
-    this.threshold =
-      Number.isFinite(parsedThreshold) && parsedThreshold >= 0 && parsedThreshold <= 1
-        ? parsedThreshold
-        : DEFAULT_THRESHOLD;
-    this.globalStagger = getStaggerValue(globalStaggerAttr) ?? DEFAULT_STAGGER;
+    const root = document.documentElement;
+    this.threshold = getThreshold(root.getAttribute('aos-threshold'), DEFAULT_THRESHOLD);
+    this.globalStagger = getStaggerValue(root.getAttribute('aos-stagger')) ?? DEFAULT_STAGGER;
     this.pageDelay = getPageDelay(currentScript);
 
-    this.observer = new IntersectionObserver(this.handleIntersect.bind(this), {
+    this.observer = new IntersectionObserver(this.handleIntersect, {
       root: null,
       rootMargin: `${-VERTICAL_OFFSET * 100}% 0% ${-VERTICAL_OFFSET * 100}% 0%`,
-      threshold: this.threshold, // Element visibility threshold
+      threshold: this.threshold,
     });
-    this.resizeObserver = new ResizeObserver(this.handleResize.bind(this));
-    window.addEventListener('scroll', this.handleScroll, { passive: true });
+    this.resizeObserver = new ResizeObserver(this.handleResize);
+    this.mutationObserver = new MutationObserver(this.handleMutations);
+
+    window.addEventListener('scroll', this.scheduleRevealFlush, { passive: true });
     window.addEventListener('resize', this.scheduleRevealFlush);
+
     this.initializeAnimations();
+    this.mutationObserver.observe(document.body, { childList: true, subtree: true });
   }
 
-  initializeAnimations() {
-    // Select elements with aos and children of elements with aos-children
-    const elements = document.querySelectorAll('[aos], [aos-children] > *');
+  private initializeAnimations() {
     let initialItems = 0;
 
-    elements.forEach((element) => {
-      const target = element as HTMLElement;
-
+    document.querySelectorAll<HTMLElement>(TARGET_SELECTOR).forEach((target) => {
       if (this.isInitiallyVisible(target)) {
         this.animateIn(target, initialItems, this.pageDelay);
         initialItems += 1;
         return;
       }
-
-      this.pendingTargets.add(target);
-      this.observer.observe(target);
+      this.observeTarget(target);
     });
   }
 
-  handleIntersect(entries: IntersectionObserverEntry[]) {
+  private handleIntersect = (entries: IntersectionObserverEntry[]) => {
     if (!entries.some((entry) => entry.isIntersecting)) return;
-
-    this.scheduleRevealFlush();
-  }
-
-  private isInitiallyVisible(target: HTMLElement) {
-    const { top, bottom } = target.getBoundingClientRect();
-    return top < window.innerHeight && bottom > 0;
-  }
-
-  private getDocumentHeight() {
-    return Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
-  }
-
-  private handleScroll = () => {
     this.scheduleRevealFlush();
   };
+
+  private handleMutations = (mutations: MutationRecord[]) => {
+    const candidates = new Set<HTMLElement>();
+
+    for (const mutation of mutations) {
+      mutation.removedNodes.forEach((node) => {
+        if (node instanceof Element) this.releaseSubtree(node);
+      });
+      mutation.addedNodes.forEach((node) => {
+        if (node instanceof Element) this.collectTargets(node as HTMLElement, candidates);
+      });
+    }
+
+    candidates.forEach((target) => this.observeTarget(target));
+  };
+
+  private handleResize = (entries: ResizeObserverEntry[]) => {
+    if (!entries.some((entry) => this.shouldReset(entry.target as HTMLElement))) return;
+    this.resetHiddenTargets();
+  };
+
+  private collectTargets(root: HTMLElement, into: Set<HTMLElement>) {
+    if (root.matches(TARGET_SELECTOR)) into.add(root);
+    // querySelectorAll('[aos-children] > *') won't match children of `root` itself,
+    // so handle that case explicitly when `root` is the [aos-children] container.
+    if (root.hasAttribute('aos-children')) {
+      for (const child of root.children) into.add(child as HTMLElement);
+    }
+    root.querySelectorAll<HTMLElement>(TARGET_SELECTOR).forEach((el) => into.add(el));
+  }
+
+  private observeTarget(target: HTMLElement) {
+    if (this.pendingTargets.has(target) || this.completedTargets.has(target)) return;
+    if (target.classList.contains('aos-done') || target.classList.contains('in-viewport')) return;
+
+    this.pendingTargets.add(target);
+    this.observer.observe(target);
+  }
+
+  private releaseSubtree(root: Element) {
+    this.releaseTarget(root as HTMLElement);
+    root.querySelectorAll('*').forEach((el) => this.releaseTarget(el as HTMLElement));
+  }
+
+  private releaseTarget(target: HTMLElement) {
+    if (!this.pendingTargets.has(target) && !this.completedTargets.has(target)) return;
+    // Skip moved nodes: a re-parent fires both removedNodes and addedNodes for the
+    // same element, but it's still in the document — keep its tracked state.
+    if (target.isConnected) return;
+
+    this.pendingTargets.delete(target);
+    this.completedTargets.delete(target);
+    this.observer.unobserve(target);
+    this.resizeObserver.unobserve(target);
+  }
 
   private scheduleRevealFlush = () => {
     if (this.revealFrame !== null) return;
@@ -154,101 +194,20 @@ class ScrollAnimator {
     });
   };
 
-  private handleResize(entries: ResizeObserverEntry[]) {
-    if (!entries.some((entry) => this.shouldReset(entry.target as HTMLElement))) return;
-
-    this.resetHiddenTargets();
-  }
-
   private flushReadyTargets() {
-    const readyTargets = Array.from(this.pendingTargets)
+    Array.from(this.pendingTargets)
       .filter((target) => this.isReadyToAnimate(target))
-      .sort((targetA, targetB) => this.sortElementsByViewportPosition(targetA, targetB));
-
-    readyTargets.forEach((target, items) => {
-      this.animateIn(target, items);
-    });
-  }
-
-  private isReadyToAnimate(target: HTMLElement) {
-    const rect = target.getBoundingClientRect();
-    if (rect.height <= 0) return false;
-
-    const verticalOffset = this.isAtPageBottom() ? 0 : window.innerHeight * VERTICAL_OFFSET;
-    const viewportTop = verticalOffset;
-    const viewportBottom = window.innerHeight - verticalOffset;
-    const visibleTop = Math.max(rect.top, viewportTop);
-    const visibleBottom = Math.min(rect.bottom, viewportBottom);
-    const visibleHeight = visibleBottom - visibleTop;
-
-    if (visibleHeight <= 0) return false;
-
-    const visibleRatio = Math.min(visibleHeight / rect.height, 1);
-
-    return this.threshold <= 0 || visibleRatio >= this.threshold;
-  }
-
-  private isAtPageBottom() {
-    return window.scrollY + window.innerHeight >= this.getDocumentHeight() - 1;
-  }
-
-  // Replay completed animations only when the element leaves layout entirely,
-  // such as when a mega-menu ancestor switches to display: none.
-  private shouldReset(target: HTMLElement) {
-    const hasAnimated =
-      target.classList.contains('in-viewport') || target.classList.contains('aos-done');
-
-    return hasAnimated && target.getClientRects().length === 0;
-  }
-
-  private reset(target: HTMLElement) {
-    target.classList.remove('in-viewport', 'aos-done');
-    target.style.transitionDelay = '';
-    target.style.removeProperty('--duration');
-    this.completedTargets.delete(target);
-    this.pendingTargets.add(target);
-    this.resizeObserver.unobserve(target);
-    this.observer.observe(target);
-  }
-
-  private resetHiddenTargets() {
-    Array.from(this.completedTargets).forEach((target) => {
-      if (this.shouldReset(target)) this.reset(target);
-    });
-  }
-
-  private sortElementsByViewportPosition(targetA: Element, targetB: Element) {
-    const rectA = targetA.getBoundingClientRect();
-    const rectB = targetB.getBoundingClientRect();
-    const topDifference = rectA.top - rectB.top;
-
-    if (topDifference !== 0) return topDifference;
-
-    const position = targetA.compareDocumentPosition(targetB);
-
-    if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
-    if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
-
-    return 0;
+      .sort((a, b) => this.sortByViewportPosition(a, b))
+      .forEach((target, items) => this.animateIn(target, items));
   }
 
   private animateIn(target: HTMLElement, items: number, pageDelay = 0) {
     this.pendingTargets.delete(target);
 
-    // Determine duration
-    const durationAttr =
-      target.getAttribute('aos-duration') ||
-      target.closest('[aos-duration]')?.getAttribute('aos-duration') ||
-      null;
-    const duration = getDurationValue(durationAttr) ?? DEFAULT_DURATION;
-    target.style.setProperty('--duration', duration);
+    const durationAttr = target.closest('[aos-duration]')?.getAttribute('aos-duration') ?? null;
+    target.style.setProperty('--duration', getDurationValue(durationAttr) ?? DEFAULT_DURATION);
 
-    // Determine stagger
-    const staggerAttr =
-      target.getAttribute('aos-stagger') ||
-      target.closest('[aos-stagger]')?.getAttribute('aos-stagger') ||
-      null;
-
+    const staggerAttr = target.closest('[aos-stagger]')?.getAttribute('aos-stagger') ?? null;
     const stagger = getStaggerValue(staggerAttr) ?? this.globalStagger;
     const staggerDelay = `calc(${items} * ${stagger})`;
 
@@ -270,6 +229,68 @@ class ScrollAnimator {
     this.completedTargets.add(target);
     this.resizeObserver.observe(target);
     this.observer.unobserve(target);
+  }
+
+  // Replay completed animations only when the element leaves layout entirely,
+  // such as when a mega-menu ancestor switches to display: none.
+  private shouldReset(target: HTMLElement) {
+    const hasAnimated =
+      target.classList.contains('in-viewport') || target.classList.contains('aos-done');
+    return hasAnimated && target.getClientRects().length === 0;
+  }
+
+  private reset(target: HTMLElement) {
+    target.classList.remove('in-viewport', 'aos-done');
+    target.style.transitionDelay = '';
+    target.style.removeProperty('--duration');
+    this.completedTargets.delete(target);
+    this.pendingTargets.add(target);
+    this.resizeObserver.unobserve(target);
+    this.observer.observe(target);
+  }
+
+  private resetHiddenTargets() {
+    this.completedTargets.forEach((target) => {
+      if (this.shouldReset(target)) this.reset(target);
+    });
+  }
+
+  private isInitiallyVisible(target: HTMLElement) {
+    const { top, bottom } = target.getBoundingClientRect();
+    return top < window.innerHeight && bottom > 0;
+  }
+
+  private isReadyToAnimate(target: HTMLElement) {
+    const rect = target.getBoundingClientRect();
+    if (rect.height <= 0) return false;
+
+    const offset = this.isAtPageBottom() ? 0 : window.innerHeight * VERTICAL_OFFSET;
+    const visibleTop = Math.max(rect.top, offset);
+    const visibleBottom = Math.min(rect.bottom, window.innerHeight - offset);
+    const visibleHeight = visibleBottom - visibleTop;
+
+    if (visibleHeight <= 0) return false;
+
+    const visibleRatio = Math.min(visibleHeight / rect.height, 1);
+    return this.threshold <= 0 || visibleRatio >= this.threshold;
+  }
+
+  private isAtPageBottom() {
+    const documentHeight = Math.max(
+      document.documentElement.scrollHeight,
+      document.body?.scrollHeight ?? 0
+    );
+    return window.scrollY + window.innerHeight >= documentHeight - 1;
+  }
+
+  private sortByViewportPosition(a: Element, b: Element) {
+    const topDifference = a.getBoundingClientRect().top - b.getBoundingClientRect().top;
+    if (topDifference !== 0) return topDifference;
+
+    const position = a.compareDocumentPosition(b);
+    if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+    if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+    return 0;
   }
 }
 

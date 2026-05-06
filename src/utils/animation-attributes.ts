@@ -12,23 +12,29 @@ export const getPageDelay = (currentScript: HTMLScriptElement | null) => {
 export const getDurationValue = (attribute: string | null) => {
   if (attribute === null) return null;
 
-  const trimmedAttribute = attribute.trim();
-  if (trimmedAttribute.endsWith('ms') || trimmedAttribute.endsWith('s')) {
-    return trimmedAttribute;
-  }
+  const trimmed = attribute.trim();
+  if (trimmed.endsWith('ms') || trimmed.endsWith('s')) return trimmed;
 
-  const parsedValue = parseFloat(trimmedAttribute);
-  return Number.isFinite(parsedValue) && parsedValue >= 0 ? `${parsedValue}ms` : null;
+  const parsed = parseFloat(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? `${parsed}ms` : null;
 };
 
 export const getStaggerValue = (attribute: string | null) => {
-  const parsedValue = parseNumericAttr(attribute, Number.NaN);
-  return Number.isFinite(parsedValue) ? `${parsedValue}ms` : null;
+  const parsed = parseNumericAttr(attribute, Number.NaN);
+  return Number.isFinite(parsed) ? `${parsed}ms` : null;
+};
+
+export const getThreshold = (attribute: string | null, fallback: number) => {
+  if (attribute === null) return fallback;
+
+  const parsed = parseFloat(attribute);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) return fallback;
+  return parsed;
 };
 
 const parseNumericAttr = (attribute: string | null, fallback: number) => {
   if (attribute === null) return fallback;
 
-  const parsedValue = parseFloat(attribute);
-  return Number.isFinite(parsedValue) && parsedValue >= 0 ? parsedValue : fallback;
+  const parsed = parseFloat(attribute);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 };

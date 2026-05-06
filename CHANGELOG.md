@@ -1,5 +1,11 @@
 # @jankocian/flowsnip-better-animations
 
+## 2.6.0
+
+### Minor Changes
+
+- Animate elements added to the DOM after initial load. A MutationObserver now picks up nodes injected via Ajax, CMS pagination, modals, and similar dynamic flows, and routes them through the same staggered reveal pipeline as the initial scan. Removed subtrees release their tracked targets to prevent leaks on long sessions.
+
 ## 2.5.5
 
 ### Patch Changes
